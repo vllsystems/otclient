@@ -30,11 +30,8 @@
 #include <X11/Xresource.h>
 #include <X11/cursorfont.h>
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdlib>
-#include <locale>
-#include <sstream>
 #include <unistd.h>
 
 namespace {
@@ -65,16 +62,35 @@ namespace {
         if (!text || !*text)
             return 0.f;
 
-        std::istringstream in(std::string{ text });
-        in.imbue(std::locale::classic());
+        const char* p = text;
+        while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == '\f' || *p == '\v')
+            ++p;
 
         double value = 0.0;
-        in >> value;
-        if (!in || !std::isfinite(value) || value <= 0.0)
-            return 0.f;
+        bool hasDigit = false;
+        while (*p >= '0' && *p <= '9') {
+            value = value * 10.0 + static_cast<double>(*p - '0');
+            hasDigit = true;
+            ++p;
+        }
 
-        in >> std::ws;
-        if (!in.eof())
+        if (*p == '.') {
+            ++p;
+            double frac = 0.0;
+            double base = 1.0;
+            while (*p >= '0' && *p <= '9') {
+                frac = frac * 10.0 + static_cast<double>(*p - '0');
+                base *= 10.0;
+                hasDigit = true;
+                ++p;
+            }
+            value += frac / base;
+        }
+
+        while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == '\f' || *p == '\v')
+            ++p;
+
+        if (!hasDigit || *p != '\0' || !std::isfinite(value) || value <= 0.0)
             return 0.f;
 
         return static_cast<float>(value);
