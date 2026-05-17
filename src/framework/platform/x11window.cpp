@@ -33,6 +33,8 @@
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <locale>
+#include <sstream>
 #include <unistd.h>
 
 namespace {
@@ -40,6 +42,14 @@ namespace {
     {
         const int index = y * bytesPerRow + (x / 8);
         bits[index] |= static_cast<uint8_t>(1u << (x % 8));
+    }
+
+    void ascii_tolower_inplace(std::string& s)
+    {
+        for (char& c : s) {
+            if (c >= 'A' && c <= 'Z')
+                c = static_cast<char>(c - 'A' + 'a');
+        }
     }
 
     enum class DensitySource
@@ -55,9 +65,16 @@ namespace {
         if (!text || !*text)
             return 0.f;
 
-        char* end = nullptr;
-        const double value = std::strtod(text, &end);
-        if (end == text || !std::isfinite(value) || value <= 0.0)
+        std::istringstream in(std::string{ text });
+        in.imbue(std::locale::classic());
+
+        double value = 0.0;
+        in >> value;
+        if (!in || !std::isfinite(value) || value <= 0.0)
+            return 0.f;
+
+        in >> std::ws;
+        if (!in.eof())
             return 0.f;
 
         return static_cast<float>(value);
@@ -142,9 +159,7 @@ namespace {
 
     unsigned int getSystemCursorShape(std::string cursorName)
     {
-        std::transform(cursorName.begin(), cursorName.end(), cursorName.begin(), [](unsigned char c) {
-            return static_cast<char>(std::tolower(c));
-        });
+        ascii_tolower_inplace(cursorName);
 
         if (cursorName == "arrow" || cursorName == "default")
             return XC_left_ptr;
@@ -1158,8 +1173,22 @@ int X11Window::internalLoadMouseCursor(const ImagePtr& image, const Point& hotSp
 
     for (const auto& frame : frames) {
         const auto& img = frame.image;
+        if (!img || img->getBpp() != 4) {
+            for (const Cursor createdCursor : cursorState.cursors)
+                XFreeCursor(m_display, createdCursor);
+            g_logger.error("X11 cursor image must have 4 channels");
+            return -1;
+        }
+
         const int width = img->getWidth();
         const int height = img->getHeight();
+        if (width <= 0 || height <= 0) {
+            for (const Cursor createdCursor : cursorState.cursors)
+                XFreeCursor(m_display, createdCursor);
+            g_logger.error("X11 cursor image has invalid size={}x{}", width, height);
+            return -1;
+        }
+
         const int bytesPerRow = (width + 7) / 8;
         const int numbytes = bytesPerRow * height;
         const int numbits = width * height;

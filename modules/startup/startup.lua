@@ -43,20 +43,11 @@ function init()
         x = (displaySize.width - size.width) / 2,
         y = (displaySize.height - size.height) / 2
     }
-    local hasSavedWindowPos = g_settings.exists('window-pos')
     local pos = defaultPos
     if not isX11 then
         pos = g_settings.getPoint('window-pos', defaultPos)
     end
     if isX11 then
-        local epsilon = 0.5
-        local isDefaultPos = math.abs(pos.x - defaultPos.x) <= epsilon and math.abs(pos.y - defaultPos.y) <= epsilon
-        if shouldScaleLegacySavedMetrics and hasSavedWindowPos and not isDefaultPos then
-            pos = {
-                x = math.floor((pos.x * density) + 0.5),
-                y = math.floor((pos.y * density) + 0.5)
-            }
-        end
         local maxX = math.max(displaySize.width - size.width, 0)
         local maxY = math.max(displaySize.height - size.height, 0)
         pos.x = math.max(0, math.min(pos.x, maxX))
